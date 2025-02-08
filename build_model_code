@@ -1,0 +1,123 @@
+-- Kiểm tra dữ liệu
+SELECT count(*)
+FROM `possible-byway-421016.portfolio.homecredit_train_data` 
+LIMIT 10
+-- 151935
+
+-- In vài dòng dữ liệu
+SELECT *
+FROM `possible-byway-421016.portfolio.homecredit_train_data`  
+LIMIT 10
+
+-------------------- TH1: LOGISTIC REGRESSION MODEL ---------------------
+-- CREATE MODEL
+CREATE OR REPLACE MODEL portfolio.homecredit_logistic_model
+OPTIONS(
+  model_type = 'LOGISTIC_REG',
+  input_label_cols = ['TARGET'],
+  AUTO_CLASS_WEIGHTS = TRUE
+)
+AS 
+SELECT *
+FROM `possible-byway-421016.portfolio.homecredit_train_data` ;
+
+-- EVALUATION
+SELECT *
+FROM ML.EVALUATE(MODEL portfolio.homecredit_logistic_model)
+
+SELECT *
+FROM ML.CONFUSION_MATRIX(MODEL portfolio.homecredit_logistic_model)
+
+SELECT *
+FROM ML.ROC_CURVE(MODEL portfolio.homecredit_logistic_model)
+
+-------------------- TH2: BOOSTED TREE MODEL ---------------------
+-- CREATE MODEL
+CREATE OR REPLACE MODEL portfolio.homecredit_boostedtree_model
+OPTIONS(
+  model_type = 'BOOSTED_TREE_CLASSIFIER',
+  input_label_cols = ['TARGET'],
+  NUM_PARALLEL_TREE = 500
+)
+AS 
+SELECT *
+FROM `possible-byway-421016.portfolio.homecredit_train_data`;
+
+-- EVALUATION
+SELECT *
+FROM ML.EVALUATE(MODEL portfolio.homecredit_boostedtree_model)
+
+SELECT *
+FROM ML.CONFUSION_MATRIX(MODEL portfolio.homecredit_boostedtree_model)
+
+SELECT *
+FROM ML.ROC_CURVE(MODEL portfolio.homecredit_boostedtree_model)
+
+-------------------- TH3: RANDOM FOREST MODEL ---------------------
+-- CREATE MODEL
+CREATE OR REPLACE MODEL portfolio.homecredit_randomforest_model
+OPTIONS(
+  model_type = 'RANDOM_FOREST_CLASSIFIER',
+  input_label_cols = ['TARGET'],
+  NUM_PARALLEL_TREE = 500
+)
+AS 
+SELECT *
+FROM `possible-byway-421016.portfolio.homecredit_train_data`;
+
+-- EVALUATION
+SELECT *
+FROM ML.EVALUATE(MODEL portfolio.homecredit_randomforest_model)
+
+SELECT *
+FROM ML.CONFUSION_MATRIX(MODEL portfolio.homecredit_randomforest_model)
+
+SELECT *
+FROM ML.ROC_CURVE(MODEL portfolio.homecredit_randomforest_model)
+
+-- Chọn Random Forest Model để tiến hành dự đoán (giải thích chi tiết so sánh 3 model ở file compare_models_result)
+-- PREDICT
+
+-- Đếm dòng dữ liệu test
+SELECT count(*)
+FROM `possible-byway-421016.portfolio.homecredit_test_data`
+LIMIT 10;
+--48744
+
+-- In vài dòng dữ liệu
+SELECT *
+FROM `possible-byway-421016.portfolio.homecredit_test_data`
+LIMIT 10;
+
+-- Kiểm tra khác kiểu dữ liệu giữa train_data và test_data
+SELECT column_name, 
+       MAX(CASE WHEN table_name = 'homecredit_train_data' THEN data_type END) AS train_data_type,
+       MAX(CASE WHEN table_name = 'homecredit_test_data' THEN data_type END) AS test_data_type
+FROM `possible-byway-421016.portfolio.INFORMATION_SCHEMA.COLUMNS`
+WHERE table_name IN ('homecredit_train_data', 'homecredit_test_data')
+GROUP BY column_name
+HAVING train_data_type != test_data_type;
+
+-- Chuyển kiểu dữ liệu
+CREATE OR REPLACE TABLE `possible-byway-421016.portfolio.homecredit_test_data` AS
+SELECT 
+    SAFE_CAST(NAME_CONTRACT_TYPE AS INT64) AS NAME_CONTRACT_TYPE,
+    SAFE_CAST(CODE_GENDER AS INT64) AS CODE_GENDER,
+    SAFE_CAST(FLAG_OWN_CAR AS INT64) AS FLAG_OWN_CAR,
+    SAFE_CAST(NAME_TYPE_SUITE AS INT64) AS NAME_TYPE_SUITE,
+    SAFE_CAST(NAME_INCOME_TYPE AS INT64) AS NAME_INCOME_TYPE,
+    SAFE_CAST(NAME_EDUCATION_TYPE AS INT64) AS NAME_EDUCATION_TYPE,
+    SAFE_CAST(NAME_FAMILY_STATUS AS INT64) AS NAME_FAMILY_STATUS,
+    SAFE_CAST(NAME_HOUSING_TYPE AS INT64) AS NAME_HOUSING_TYPE,
+    SAFE_CAST(WEEKDAY_APPR_PROCESS_START AS INT64) AS WEEKDAY_APPR_PROCESS_START,
+    * EXCEPT (NAME_CONTRACT_TYPE,CODE_GENDER,FLAG_OWN_CAR,NAME_TYPE_SUITE,NAME_INCOME_TYPE,NAME_EDUCATION_TYPE,
+    NAME_FAMILY_STATUS,NAME_HOUSING_TYPE,WEEKDAY_APPR_PROCESS_START)
+FROM `possible-byway-421016.portfolio.homecredit_test_data`;
+
+-- PREDICT
+SELECT *
+FROM
+  ML.PREDICT(MODEL portfolio.homecredit_randomforest_model,
+  (SELECT *
+FROM `possible-byway-421016.portfolio.homecredit_test_data`
+  ));
